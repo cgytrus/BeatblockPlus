@@ -1,0 +1,34 @@
+[manifest]
+version = "1.0.0"
+dump_lua = true
+priority = 2147483647
+
+[[patches]]
+[patches.pattern]
+target = "lib/basestate.lua"
+pattern = '''
+function basestate.new(filename,name)
+  name = name or filename
+  basestate.states[name] = love.filesystem.load("states/" .. filename .. ".lua") -- this is a bad idea
+  print("made state ".. name)
+end
+'''
+position = "at"
+payload = '''
+function basestate.new(filename, name)
+	name = name or filename
+	basestate.fromPath(name, "states/" .. filename .. ".lua")
+end
+
+function basestate.fromPath(name, path)
+	local source = path or ("states/" .. name .. ".lua")
+	local errormsg
+	basestate.states[name], errormsg = love.filesystem.load(source)
+	if errormsg then
+		print("[BB+] couldn't load state " .. name .. ". Error: " .. errormsg)
+	else
+		print("[BB+] made state " .. name)
+	end
+end
+'''
+match_indent = true

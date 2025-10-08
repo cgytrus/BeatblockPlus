@@ -1,4 +1,19 @@
-local loader = {}
+local loader = {
+	localeNames = {},
+	events = {}
+}
+
+local pre = {
+	sprites = {},
+	sounds = {},
+	shaders = {},
+	animations = {},
+	locales = {},
+	states = {},
+	entities = {},
+	events = {},
+	mains = {}
+}
 
 local function setModChunkEnvironment(chunk, mod, setDeprecated)
 	local env = setmetatable({}, {
@@ -32,16 +47,6 @@ local function setModChunkEnvironment(chunk, mod, setDeprecated)
 		__newindex = _G
 	})
 	return setfenv(chunk, env)
-end
-
-local function mergeLangFiles(originalLoc, modLoc)
-	local selectedLanguage = savedata.options.language
-	for key, value in pairs(modLoc) do
-		if not originalLoc[key] then
-			originalLoc[key] = {}
-		end
-		originalLoc[key][selectedLanguage] = value
-	end
 end
 
 local function getModConfigRenderer(mod)
@@ -97,10 +102,10 @@ local function setModEnabled(mod, enabled)
 end
 
 function loader.loadMods() -- loads mod data, assets, mod icons etc.
-	bbp.mods = {}
-
-	-- TODO: remove this later due to deprecation
-	mods = bbp.mods
+	if #bbp.mods ~= 0 then
+		print("[BB+] trying to load mods twice..?")
+		return
+	end
 
 	local modsPath = "Mods"
 	local success = love.filesystem.getInfo(modsPath, 'directory')
@@ -109,6 +114,11 @@ function loader.loadMods() -- loads mod data, assets, mod icons etc.
 		print("[BB+] Failed to find Mods directory. Mods won't be loaded.")
 		return
 	end
+
+	local json = require("lib.json")
+	local helpers = require("lib.helpers")
+	package.loaded["lib.json"] = nil
+	package.loaded["lib.helpers"] = nil
 
 	for _, modDir in ipairs(love.filesystem.getDirectoryItems(modsPath)) do
 		if modDir == "lovely" then
@@ -154,9 +164,8 @@ function loader.loadMods() -- loads mod data, assets, mod icons etc.
 			mod.enabled = true
 		end
 
-		-- load mod data if it exists
 		if love.filesystem.getInfo(mod.path .. "/mod.json", 'file') then
-			local modData = dpf.loadJson(mod.path .. "/mod.json")
+			local modData = json.decode(love.filesystem.read(mod.path .. "/mod.json"))
 			mod.id = modData.id or mod.id
 			mod.name = modData.name or mod.name
 			mod.author = modData.author or mod.author
@@ -183,25 +192,13 @@ function loader.loadMods() -- loads mod data, assets, mod icons etc.
 			mod.enabled = true
 		end
 
-		-- load mod config if it exists
 		if love.filesystem.getInfo(mod.path .. "/config.json", 'file') then
-			local modConfig = dpf.loadJson(mod.path .. "/config.json")
+			local modConfig = json.decode(love.filesystem.read(mod.path .. "/config.json"))
 			if modConfig then
 				-- a shallow copy is enough in this case
 				for k, v in pairs(modConfig) do
 					mod.config[k] = v
 				end
-			end
-		end
-
-		-- load mod icon if it exists
-		if love.filesystem.getInfo(mod.path .. "/icon.png", 'file') then
-			local modIcon = love.graphics.newImage(mod.path .. "/icon.png")
-			local width, height = modIcon:getDimensions()
-			if width ~= 73 or height ~= 33 then
-				print("[BB+] Mod " .. mod.id .. " has invalid icon size. Mod icons must be 73x33.")
-			else
-				rawset(mod, "icon", modIcon)
 			end
 		end
 
@@ -212,86 +209,180 @@ function loader.loadMods() -- loads mod data, assets, mod icons etc.
 			goto continue
 		end
 
-		-- load assets
 		local assetsPath = mod.path .. "/assets"
 		if love.filesystem.getInfo(assetsPath, 'directory') then
-			-- load sprites
-			bbp.utils.loopFiles(sprites, assetsPath .. "/textures", function(tbl, path, fileName)
-				print("[BB+] injecting sprite " .. path .. "...")
-				tbl[fileName] = love.graphics.newImage(path)
-			end)
-
-			-- load sounds
-			bbp.utils.loopFiles(sounds, assetsPath .. "/sounds", function(tbl, path, fileName)
-				print("[BB+] injecting sound " .. path .. "...")
-				tbl[fileName] = love.sound.newSoundData(path)
-			end)
-
-			-- load shaders
-			bbp.utils.loopFiles(shaders, assetsPath .. "/shaders", function(tbl, path, fileName)
-				print("[BB+] injecting shader " .. path .. "...")
-				tbl[fileName] = love.graphics.newShader(path)
-			end)
-
-			-- load animations
-			bbp.utils.loopFiles(animations, assetsPath .. "/animations", function(tbl, path, fileName)
-				if path:endswith(".png") then
-					print("[BB+] injecting animation " .. path .. "...")
-					local data = bbp.utils.getFileParent(path) .. "data.json"
-					if not love.filesystem.getInfo(data, 'file') then
-						print("[BB+] Error while injecting animation '" .. path .. "'. The '" .. data .. "' file is missing!")
-					end
-					tbl[fileName] = ez.newjson(path, data)
-				end
-			end)
-
-			-- load lang files
-			bbp.utils.loopFiles(loc.json, assetsPath .. "/lang", function(tbl, path, fileName)
-				table.insert(customLanguages, fileName)
-				-- make sure we don't load english lang when owo is selected
-				if fileName == savedata.options.language then
-					print("[BB+] injecting lang file " .. path .. "...")
-					local modLoc = dpf.loadJson(path, {})
-					mergeLangFiles(loc.json, modLoc)
-				end
-			end)
+			pre.sprites[mod] = assetsPath .. "/textures"
+			pre.sounds[mod] = assetsPath .. "/sounds"
+			pre.shaders[mod] = assetsPath .. "/shaders"
+			pre.animations[mod] = assetsPath .. "/animations"
+			pre.locales[mod] = assetsPath .. "/lang"
 		end
 
-		-- load states
-		bbp.utils.loopFiles({}, mod.path .. "/states", function(_, path, fileName)
+		if love.filesystem.getInfo(mod.path .. "/states", 'directory') then
+			pre.states[mod] = mod.path .. "/states"
+		end
+
+		if love.filesystem.getInfo(mod.path .. "/entities", 'directory') then
+			pre.entities[mod] = mod.path .. "/entities"
+		end
+
+		if love.filesystem.getInfo(mod.path .. "/events", 'directory') then
+			pre.events[mod] = mod.path .. "/events"
+		end
+
+		if love.filesystem.getInfo(mod.path .. "/main.lua") then
+			local chunk, errormsg = love.filesystem.load(mod.path .. "/main.lua")
+			if errormsg then
+				print("[BB+] Error while loading the main.lua file of '" .. mod.id .. "': " .. errormsg)
+			else
+				table.insert(pre.mains, setModChunkEnvironment(chunk, mod, true))
+			end
+		end
+
+		if love.filesystem.getInfo(mod.path .. "/load.lua") then
+			local chunk, errormsg = love.filesystem.load(mod.path .. "/load.lua")
+			if errormsg then
+				print("[BB+] Error while loading the load.lua file of '" .. mod.id .. "': " .. errormsg)
+			else
+				setModChunkEnvironment(chunk, mod, false)()
+			end
+		end
+
+		::continue::
+	end
+
+	print("[BB+] Finished loading all mods! :D")
+end
+
+function loader.loadSprites(sprites)
+	for _, v in pairs(pre.sprites) do
+		bbp.utils.loopFiles(sprites, v, function(tbl, path, fileName)
+			print("[BB+] injecting sprite " .. path .. "...")
+			tbl[fileName] = love.graphics.newImage(path)
+		end)
+	end
+	bbp.utils.printTable(sprites, "Sprites:")
+	pre.sprites = nil
+end
+
+function loader.loadSounds(sounds)
+	for _, v in pairs(pre.sounds) do
+		bbp.utils.loopFiles(sounds, v, function(tbl, path, fileName)
+			print("[BB+] injecting sound " .. path .. "...")
+			tbl[fileName] = love.sound.newSoundData(path)
+		end)
+	end
+	bbp.utils.printTable(sounds, "Sounds:")
+	pre.sounds = nil
+end
+
+function loader.loadShaders(shaders)
+	for _, v in pairs(pre.shaders) do
+		bbp.utils.loopFiles(shaders, v, function(tbl, path, fileName)
+			print("[BB+] injecting shader " .. path .. "...")
+			tbl[fileName] = love.graphics.newShader(path)
+		end)
+	end
+	bbp.utils.printTable(shaders, "Shaders:")
+	pre.shaders = nil
+end
+
+function loader.loadAnimations(animations)
+	for _, v in pairs(pre.animations) do
+		bbp.utils.loopFiles(animations, v, function(tbl, path, fileName)
+			if not path:endswith(".png") then
+				return
+			end
+			print("[BB+] injecting animation " .. path .. "...")
+			local data = bbp.utils.getFileParent(path) .. "data.json"
+			if not love.filesystem.getInfo(data, 'file') then
+				print("[BB+] Error while injecting animation '" .. path .. "'. The '" .. data .. "' file is missing!")
+			end
+			tbl[fileName] = ez.newjson(path, data)
+		end)
+	end
+	bbp.utils.printTable(animations, "Animations:")
+	pre.animations = nil
+end
+
+function loader.loadLocales()
+	for _, v in pairs(pre.locales) do
+		bbp.utils.loopFiles({}, v, function(_, path, _)
+			print("[BB+] injecting locale " .. path .. "...")
+			local locale = json.decode(love.filesystem.read(path))
+			for key, locs in pairs(locale) do
+				for lang, text in pairs(locs) do
+					if not loader.localeNames[lang] then
+						loader.localeNames[lang] = true
+					end
+					if not loc.json[key] then
+						loc.json[key] = {}
+					end
+					if not loc.json[key][lang] then
+						loc.json[key][lang] = {}
+					end
+					loc.json[key][lang] = text
+				end
+			end
+		end)
+	end
+	pre.locales = nil
+end
+
+function loader.loadStates()
+	for mod, v in pairs(pre.states) do
+		bbp.utils.loopFiles({}, v, function(_, path, fileName)
 			print("[BB+] injecting state " .. path .. "...")
 			bs.fromPath(fileName, path)
 			if bs.states[fileName] then
 				setModChunkEnvironment(bs.states[fileName], mod)
 			end
 		end)
+	end
+	pre.states = nil
+end
 
-		-- load entities
-		bbp.utils.loopFiles({}, mod.path .. "/entities", function(_, path, fileName)
+function loader.loadEntities()
+	for mod, v in pairs(pre.entities) do
+		bbp.utils.loopFiles({}, v, function(_, path, fileName)
 			print("[BB+] injecting entity " .. path .. "...")
 			em.new(path, fileName)
 			if em.entities[fileName] then
 				setModChunkEnvironment(bs.states[fileName], mod)
 			end
 		end)
+	end
+	pre.entities = nil
+end
 
-		-- load and call main.lua
-		if love.filesystem.getInfo(mod.path .. "/main.lua") then
-			local chunk, errormsg = love.filesystem.load(mod.path .. "/main.lua")
-			if errormsg then
-				print("[BB+] Error while loading the main.lua file of '" .. mod.id .. "': " .. errormsg)
+function loader.loadEvents(findFiles)
+	for _, v in pairs(pre.events) do
+		print("[BB+] Finding events inside " .. v)
+		findFiles(v)
+		table.insert(bbp.loader.events, v)
+	end
+	pre.events = nil
+end
+
+function loader.loadIcons()
+	for _, mod in pairs(bbp.mods) do
+		if love.filesystem.getInfo(mod.path .. "/icon.png", 'file') then
+			local icon = love.graphics.newImage(mod.path .. "/icon.png")
+			local width, height = icon:getDimensions()
+			if width ~= 73 or height ~= 33 then
+				print("[BB+] Mod " .. mod.id .. " has invalid icon size. Mod icons must be 73x33.")
 			else
-				setModChunkEnvironment(chunk, mod, true)()
+				rawset(mod, "icon", icon)
 			end
 		end
-		::continue::
 	end
+end
 
-	print("[BB+] Finished loading all mods! :D")
-	bbp.utils.printTable(animations, "Animations:")
-	bbp.utils.printTable(sprites, "Sprites:")
-	bbp.utils.printTable(sounds, "Sounds:")
-	bbp.utils.printTable(shaders, "Shaders:")
+function loader.runMains()
+	for _, main in ipairs(pre.mains) do
+		main()
+	end
+	pre.mains = nil
 end
 
 return loader

@@ -6,6 +6,9 @@ bbp.loader = require("bbp.loader")
 
 bbp.mods = {}
 
+-- TODO: remove this later due to deprecation
+mods = bbp.mods
+
 bbp.config = setmetatable({}, {
     __index = function(_, k)
         return bbp.mods[k].config
