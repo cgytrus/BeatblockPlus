@@ -97,10 +97,10 @@ local function setModEnabled(mod, enabled)
 end
 
 function loader.loadMods() -- loads mod data, assets, mod icons etc.
-	loader.mods = {}
+	bbp.mods = {}
 
 	-- TODO: remove this later due to deprecation
-	mods = loader.mods
+	mods = bbp.mods
 
 	local modsPath = "Mods"
 	local success = love.filesystem.getInfo(modsPath, 'directory')
@@ -205,7 +205,7 @@ function loader.loadMods() -- loads mod data, assets, mod icons etc.
 			end
 		end
 
-		loader.mods[mod.id] = mod
+		bbp.mods[mod.id] = mod
 		print("[BB+] Registered mod '" .. mod.name .. "' by " .. mod.author .. ".")
 
 		if not mod.enabled then
