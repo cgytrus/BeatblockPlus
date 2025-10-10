@@ -3,29 +3,11 @@ version = "1.0.0"
 dump_lua = true
 priority = 2147483647
 
-[[patches]]
-[patches.module]
-source = "bbp/init.lua"
-before = "conf.lua"
-name = "bbp"
-
-[[patches]]
-[patches.module]
-source = "bbp/utils.lua"
-before = "conf.lua"
-name = "bbp.utils"
-
-[[patches]]
-[patches.module]
-source = "bbp/loader.lua"
-before = "conf.lua"
-name = "bbp.loader"
-
-[[patches]]
-[patches.module]
-source = "bbp/gui.lua"
-before = "conf.lua"
-name = "bbp.gui"
+# during the first load of conf.lua bbp doesnt exist
+# so the first path is taken, where we define bbp
+# and then unload and require conf.lua again
+# but since this time bbp exists,
+# it will execute the original code instead
 
 [[patches]]
 [patches.pattern]
@@ -33,11 +15,26 @@ target = "conf.lua"
 pattern = "function love.conf(*)"
 position = "before"
 payload = '''
-lovely = require("lovely")
-bbp = require("bbp")
-bbp.loader.loadMods()
+if not bbp then
+    lovely = require("lovely")
+    bbp = require("bbp")
+    bbp.loader.loadMods()
+
+    print("reloading conf.lua to apply patches done to it by mods")
+    package.loaded["conf"] = nil
+    return require("conf")
+else
 '''
 match_indent = true
+
+[[patches]]
+[patches.regex]
+target = "conf.lua"
+pattern = "^end"
+position = "after"
+payload = "end"
+verbose = true
+times = 1
 
 [[patches]]
 [patches.pattern]

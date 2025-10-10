@@ -91,6 +91,11 @@ function string:endsWith(ending)
 	return ending == "" or self:sub(- #ending) == ending
 end
 
+-- Checks if a string contains a plain substring
+function string:contains(substring)
+	return self:find(substring, 1, true) ~= nil
+end
+
 -- Gets a list of all mod names, their versions and authors
 function utils.getModList()
 	local modList = {}

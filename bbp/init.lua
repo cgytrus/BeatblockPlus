@@ -1,6 +1,7 @@
 local bbp = {}
 
 bbp.utils = require("bbp.utils")
+bbp.patcher = require("bbp.patcher")
 bbp.gui = require("bbp.gui")
 bbp.loader = require("bbp.loader")
 

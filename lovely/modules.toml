@@ -1,0 +1,34 @@
+[manifest]
+version = "1.0.0"
+dump_lua = true
+priority = 2147483647
+
+[[patches]]
+[patches.module]
+source = "bbp/init.lua"
+before = "conf.lua"
+name = "bbp"
+
+[[patches]]
+[patches.module]
+source = "bbp/utils.lua"
+before = "conf.lua"
+name = "bbp.utils"
+
+[[patches]]
+[patches.module]
+source = "bbp/patcher.lua"
+before = "conf.lua"
+name = "bbp.patcher"
+
+[[patches]]
+[patches.module]
+source = "bbp/loader.lua"
+before = "conf.lua"
+name = "bbp.loader"
+
+[[patches]]
+[patches.module]
+source = "bbp/gui.lua"
+before = "conf.lua"
+name = "bbp.gui"
